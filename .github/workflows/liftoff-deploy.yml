@@ -18,7 +18,8 @@ jobs:
             context: "."
             dockerfilePath: "Dockerfile"
             buildStrategy: "auto"
-            imageRepository: "test-metrics/production"
+            imageRepository: "test/production"
+            command: ""
     steps:
       - uses: actions/checkout@v4
 
@@ -38,6 +39,7 @@ jobs:
           CONFIGURED_BUILD_STRATEGY: ${{ matrix.service.buildStrategy }}
           CONFIGURED_DOCKERFILE_PATH: ${{ matrix.service.dockerfilePath }}
           CONFIGURED_DOCKER_CONTEXT: ${{ matrix.service.context }}
+          CONFIGURED_START_COMMAND: ${{ matrix.service.command }}
 
         # Capture every command's stdout+stderr to /tmp/build.log via tee. Notify
         # Liftoff (always-runs) reads the tail of this file so failed builds
@@ -71,7 +73,11 @@ jobs:
             echo "::endgroup::"
             echo "::group::nixpacks build"
             BUILD_PLAN="$(nixpacks plan "$CONFIGURED_DOCKER_CONTEXT" --format json | tr -d '\n')"
-            nixpacks build "$CONFIGURED_DOCKER_CONTEXT" $NIXPACKS_ENV_ARGS --name "$IMAGE_URI"
+            if [ -n "$CONFIGURED_START_COMMAND" ]; then
+              nixpacks build "$CONFIGURED_DOCKER_CONTEXT" $NIXPACKS_ENV_ARGS --start-cmd "$CONFIGURED_START_COMMAND" --name "$IMAGE_URI"
+            else
+              nixpacks build "$CONFIGURED_DOCKER_CONTEXT" $NIXPACKS_ENV_ARGS --name "$IMAGE_URI"
+            fi
             echo "::endgroup::"
           elif [ -f "$CONFIGURED_DOCKER_CONTEXT/Dockerfile" ]; then
             BUILD_STRATEGY="dockerfile"
@@ -90,7 +96,11 @@ jobs:
             echo "::endgroup::"
             echo "::group::nixpacks build"
             BUILD_PLAN="$(nixpacks plan "$CONFIGURED_DOCKER_CONTEXT" --format json | tr -d '\n')"
-            nixpacks build "$CONFIGURED_DOCKER_CONTEXT" $NIXPACKS_ENV_ARGS --name "$IMAGE_URI"
+            if [ -n "$CONFIGURED_START_COMMAND" ]; then
+              nixpacks build "$CONFIGURED_DOCKER_CONTEXT" $NIXPACKS_ENV_ARGS --start-cmd "$CONFIGURED_START_COMMAND" --name "$IMAGE_URI"
+            else
+              nixpacks build "$CONFIGURED_DOCKER_CONTEXT" $NIXPACKS_ENV_ARGS --name "$IMAGE_URI"
+            fi
             echo "::endgroup::"
           fi
 
@@ -137,7 +147,7 @@ jobs:
           fi
 
           PAYLOAD=$(cat <<JSONEOF
-          {"environmentId":"cmppx13ah00096zstkkh587r0","serviceName":"$SERVICE_NAME","imageUri":"$IMAGE_URI","commitSha":"$GITHUB_SHA","status":"$JOB_STATUS","runUrl":"$RUN_URL","buildStrategy":"$BUILD_STRATEGY","buildPlan":$BUILD_PLAN_JSON,"buildLogsBase64":$BUILD_LOGS_JSON}
+          {"environmentId":"cmq0r4q2d000914gnagy11dc7","serviceName":"$SERVICE_NAME","imageUri":"$IMAGE_URI","commitSha":"$GITHUB_SHA","status":"$JOB_STATUS","runUrl":"$RUN_URL","buildStrategy":"$BUILD_STRATEGY","buildPlan":$BUILD_PLAN_JSON,"buildLogsBase64":$BUILD_LOGS_JSON}
           JSONEOF
           )
 
